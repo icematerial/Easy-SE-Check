@@ -11,7 +11,7 @@
 ### 使い方
 
 1. このリポジトリをダウンロードするか、`git clone https://github.com/icematerial/Easy-SE-Check.git` で取得します。
-2. デスクトップ版のChromeまたはEdgeで `index.html` を開きます。Windowsでは `run.bat` を実行すると独立したアプリ風のウィンドウで開けます。
+2. デスクトップ版のChromeまたはEdgeで `index.html` を開きます。Windowsでは `run.bat` をダブルクリックするだけで、独立したアプリ風のウィンドウで簡単に起動できます。Macでは `.bat` は実行できないため、`index.html` をChromeまたはEdgeで開いてください（Macでの実動作は未確認です）。
 3. 「フォルダを開く」で音声・動画のあるフォルダを選び、読み取りを許可します。フォルダのドラッグ＆ドロップでも追加できます。
 4. 一覧のファイルを選ぶと再生します。画面上部の言語選択で日本語／Englishを切り替えられます。
 
@@ -52,7 +52,7 @@ A simple tool for previewing local sound effects, audio, and video while browsin
 ### Getting started
 
 1. Download this repository or run `git clone https://github.com/icematerial/Easy-SE-Check.git`.
-2. Open `index.html` in desktop Chrome or Edge. On Windows, run `run.bat` to open a separate app-style window.
+2. Open `index.html` in desktop Chrome or Edge. On Windows, simply double-click `run.bat` to launch a separate app-style window. On Mac, `.bat` files cannot run natively; open `index.html` in Chrome or Edge instead (not yet tested on Mac).
 3. Click **Open folder**, select a folder containing audio or video, and allow read access. You can also drag and drop folders into the window.
 4. Select a file to play it. Use the language selector at the top to switch between Japanese and English.
 
