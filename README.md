@@ -2,16 +2,16 @@
 
 [日本語](#日本語) · [English](#english)
 
-![Easy SE Check](Scrennshot.png)
+![Easy SE Check](Screenshot.png)
 
 ## 日本語
 
-ローカルの効果音・音声・動画を、フォルダをたどりながら試聴するシンプルなツールです。HTMLファイル1つで動作し、インストールやビルドは不要です。
+ローカルの効果音・音声・動画を、フォルダをたどりながら試聴するシンプルなツールです。上下キーで再生するファイルを簡単に切り替えられるので、複数の効果音を続けて聞き比べられます。HTMLファイル1つで動作し、インストールやビルドは不要です。
 
 ### 使い方
 
 1. このリポジトリをダウンロードするか、`git clone https://github.com/icematerial/Easy-SE-Check.git` で取得します。
-2. デスクトップ版のChromeまたはEdgeで `index.html` を開きます。Windowsでは `SEチェック.bat` を実行すると独立したアプリ風のウィンドウで開けます。
+2. デスクトップ版のChromeまたはEdgeで `index.html` を開きます。Windowsでは `run.bat` を実行すると独立したアプリ風のウィンドウで開けます。
 3. 「フォルダを開く」で音声・動画のあるフォルダを選び、読み取りを許可します。フォルダのドラッグ＆ドロップでも追加できます。
 4. 一覧のファイルを選ぶと再生します。画面上部の言語選択で日本語／Englishを切り替えられます。
 
@@ -47,12 +47,12 @@ MIT License。詳細は [LICENSE](LICENSE) を参照してください。
 
 ## English
 
-A simple tool for previewing local sound effects, audio, and video while browsing folders. It runs from a single HTML file with no installation or build step.
+A simple tool for previewing local sound effects, audio, and video while browsing folders. Easily switch between files with the Up and Down arrow keys to compare sound effects in quick succession. It runs from a single HTML file with no installation or build step.
 
 ### Getting started
 
 1. Download this repository or run `git clone https://github.com/icematerial/Easy-SE-Check.git`.
-2. Open `index.html` in desktop Chrome or Edge. On Windows, run `SEチェック.bat` to open a separate app-style window.
+2. Open `index.html` in desktop Chrome or Edge. On Windows, run `run.bat` to open a separate app-style window.
 3. Click **Open folder**, select a folder containing audio or video, and allow read access. You can also drag and drop folders into the window.
 4. Select a file to play it. Use the language selector at the top to switch between Japanese and English.
 
