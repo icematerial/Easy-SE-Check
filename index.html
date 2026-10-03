@@ -1,0 +1,770 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SEチェック</title>
+<style>
+:root {
+  --bg: #1b1c1f;
+  --panel: #232428;
+  --stage: #101113;
+  --line: #34363b;
+  --fg: #dfe0e3;
+  --dim: #9a9ca3;
+  --accent: #5aa2ff;
+  --accent-strong: #1f6feb;
+  --hover: #2c2e33;
+  --sel: #2b3a52;
+  --danger: #ff8a80;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 14px/1.5 "Segoe UI", "Yu Gothic UI", Meiryo, sans-serif; overflow: hidden; }
+svg { fill: currentColor; }
+button { font: inherit; color: inherit; background: #2f3136; border: 1px solid var(--line); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+button:hover:not(:disabled) { background: #3a3c42; }
+button:disabled { opacity: .4; cursor: default; }
+button:focus-visible, select:focus-visible, input:focus-visible, #tree:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+input[type=range] { accent-color: var(--accent); }
+
+#app { display: grid; grid-template-columns: min(var(--side, 300px), 60vw) 6px minmax(0, 1fr); height: 100%; }
+
+/* 左: フォルダツリー */
+#side { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--panel); }
+#side.drop { outline: 2px dashed var(--accent); outline-offset: -4px; }
+.side-head { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; border-bottom: 1px solid var(--line); }
+#language { font: inherit; color: inherit; background: #2f3136; border: 1px solid var(--line); border-radius: 6px; min-width: 0; padding: 5px; }
+#addBtn { flex: 1; background: var(--accent-strong); border-color: transparent; color: #fff; }
+#addBtn:hover:not(:disabled) { background: #3a82f0; }
+#refreshBtn { display: grid; place-items: center; padding: 5px 8px; }
+#refreshBtn svg { width: 18px; height: 18px; }
+#notice { padding: 6px 12px; color: var(--danger); font-size: 12px; }
+#notice:empty { display: none; }
+#tree { flex: 1; overflow: auto; padding: 4px 0 12px; outline-offset: -2px; }
+.empty { padding: 20px 16px; color: var(--dim); }
+
+.row { display: flex; align-items: center; gap: 4px; height: 26px; padding-right: 8px; cursor: pointer; white-space: nowrap; user-select: none; }
+.row:hover { background: var(--hover); }
+.row.sel { background: var(--sel); }
+#tree:focus .row.sel { outline: 1px solid var(--accent); outline-offset: -1px; }
+.chev, .ico, .lock, .x { flex: none; display: grid; place-items: center; width: 16px; height: 16px; }
+.chev svg { width: 10px; height: 10px; color: var(--dim); transition: transform .12s; }
+.row.open .chev svg { transform: rotate(90deg); }
+.row.file .chev { visibility: hidden; }
+.ico svg { width: 15px; height: 15px; }
+.row.dir .ico { color: #e2b45c; }
+.row.audio .ico { color: #6cb4ff; }
+.row.video .ico { color: #c49bff; }
+.label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.row.root .label { font-weight: 600; }
+.row.playing .label { color: var(--accent); font-weight: 600; }
+.row.locked { color: var(--dim); }
+.lock { display: none; color: var(--dim); }
+.lock svg { width: 13px; height: 13px; }
+.row.locked .lock { display: grid; }
+.x { width: 20px; height: 20px; border-radius: 4px; color: var(--dim); opacity: 0; }
+.x svg { width: 12px; height: 12px; }
+.row:hover .x, .row.sel .x { opacity: 1; }
+.x:hover { background: #45474d; color: var(--fg); }
+.note { display: flex; align-items: center; height: 24px; padding-right: 8px; color: var(--dim); font-size: 12px; }
+
+#splitter { background: var(--bg); cursor: col-resize; touch-action: none; }
+#splitter:hover, #splitter.on { background: var(--accent-strong); }
+
+/* 右: プレイヤー */
+#player { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--stage); }
+#stage { flex: 1; min-height: 0; position: relative; }
+#media { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; display: none; }
+#stage[data-kind="video"] #media { display: block; }
+#cover { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 24px; color: var(--dim); text-align: center; }
+#stage:not([data-kind="video"]) #cover { display: flex; }
+#cover svg { width: 96px; height: 96px; opacity: .45; }
+#cover p { margin: 0; }
+#stage:not([data-kind="idle"]) #cover p { display: none; }
+
+#bar { padding: 10px 16px 12px; background: var(--panel); border-top: 1px solid var(--line); }
+#title { min-height: 21px; font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#path { min-height: 18px; color: var(--dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#status { color: var(--danger); font-size: 12px; }
+#status:empty { display: none; }
+.seekrow { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.time { min-width: 4.5em; color: var(--dim); font-variant-numeric: tabular-nums; }
+#cur { text-align: right; }
+#seek { flex: 1; min-width: 0; }
+.btnrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-top: 6px; }
+.transport, .opts { display: flex; align-items: center; gap: 8px; }
+.round { display: grid; place-items: center; width: 38px; height: 38px; padding: 0; border-radius: 50%; }
+.round svg { width: 20px; height: 20px; }
+#playBtn { width: 46px; height: 46px; background: var(--accent-strong); border-color: transparent; color: #fff; }
+#playBtn:hover:not(:disabled) { background: #3a82f0; }
+#playBtn svg { width: 24px; height: 24px; }
+#muteBtn { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; background: none; border-color: transparent; }
+#muteBtn svg { width: 20px; height: 20px; }
+#vol { width: 100px; }
+.toggle[aria-pressed="true"] { background: var(--sel); border-color: var(--accent); color: var(--accent); }
+
+@media (max-width: 720px) {
+  #app { grid-template-columns: minmax(0, 1fr); grid-template-rows: 40% minmax(0, 1fr); }
+  #splitter { display: none; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <div class="side-head">
+      <button id="addBtn" type="button">フォルダを開く</button>
+      <select id="language" aria-label="Language / 言語"><option value="ja">日本語</option><option value="en">English</option></select>
+      <button id="refreshBtn" type="button" title="再読み込み" aria-label="再読み込み"></button>
+    </div>
+    <div id="notice" role="alert"></div>
+    <div id="tree" role="tree" aria-label="フォルダ" tabindex="0">
+      <div id="empty" class="empty">音声・動画のあるフォルダを追加してください。フォルダをここへドラッグしても追加できます。</div>
+    </div>
+  </aside>
+  <div id="splitter"></div>
+  <main id="player">
+    <div id="stage" data-kind="idle">
+      <video id="media" playsinline></video>
+      <div id="cover"><span id="coverIcon"></span><p>左のフォルダからファイルを選ぶと再生されます</p></div>
+    </div>
+    <div id="bar">
+      <div id="title"></div>
+      <div id="path"></div>
+      <div id="status" role="status"></div>
+      <div class="seekrow">
+        <span id="cur" class="time">0:00</span>
+        <input id="seek" type="range" min="0" max="0" step="any" value="0" disabled aria-label="再生位置">
+        <span id="dur" class="time">0:00</span>
+      </div>
+      <div class="btnrow">
+        <div class="transport">
+          <button id="prevBtn" class="round" type="button" title="前のファイル" aria-label="前のファイル" disabled></button>
+          <button id="playBtn" class="round" type="button" title="再生 / 一時停止（Space）" aria-label="再生" disabled></button>
+          <button id="stopBtn" class="round" type="button" title="停止" aria-label="停止" disabled></button>
+          <button id="nextBtn" class="round" type="button" title="次のファイル" aria-label="次のファイル" disabled></button>
+        </div>
+        <div class="opts">
+          <button id="muteBtn" type="button" title="ミュート" aria-label="ミュート"></button>
+          <input id="vol" type="range" min="0" max="1" step="0.01" value="0.8" aria-label="音量">
+          <button id="loopBtn" class="toggle" type="button" aria-pressed="false" title="1つのファイルを繰り返す">ループ</button>
+          <button id="autoNextBtn" class="toggle" type="button" aria-pressed="false" title="終わったら同じフォルダの次のファイルを再生">連続再生</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+'use strict';
+
+const AUDIO_EXT = new Set(['mp3', 'wav', 'ogg', 'oga', 'opus', 'm4a', 'aac', 'flac', 'weba']);
+const VIDEO_EXT = new Set(['mp4', 'm4v', 'mov', 'webm', 'mkv', 'ogv']);
+function kindOf(name) {
+  const i = name.lastIndexOf('.');
+  if (i < 0) return null;
+  const ext = name.slice(i + 1).toLowerCase();
+  return AUDIO_EXT.has(ext) ? 'audio' : VIDEO_EXT.has(ext) ? 'video' : null;
+}
+
+const ICON = {
+  chev: '<svg viewBox="0 0 16 16"><path d="M5 2l7 6-7 6z"/></svg>',
+  folder: '<svg viewBox="0 0 16 16"><path d="M1.5 3.5a1 1 0 0 1 1-1h3.2l1.5 1.5h6.3a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z"/></svg>',
+  audio: '<svg viewBox="0 0 16 16"><path d="M6 2v8.3a2.5 2.5 0 1 0 1.5 2.2V5.4l5-1V9a2.5 2.5 0 1 0 1.5 2.3V1z"/></svg>',
+  video: '<svg viewBox="0 0 16 16"><path d="M2 3.5h8a1 1 0 0 1 1 1v2.2l3.5-2v6.6L11 9.3v2.2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z"/></svg>',
+  lock: '<svg viewBox="0 0 16 16"><path d="M4.5 7V5a3.5 3.5 0 0 1 7 0v2h.5a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zm1.5 0h4V5a2 2 0 0 0-4 0z"/></svg>',
+  close: '<svg viewBox="0 0 16 16"><path d="M3.3 2.3L8 7l4.7-4.7 1 1L9 8l4.7 4.7-1 1L8 9l-4.7 4.7-1-1L7 8 2.3 3.3z"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4z"/></svg>',
+  play: '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>',
+  pause: '<svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>',
+  stop: '<svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>',
+  prev: '<svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zM9.5 12l8.5 6V6z"/></svg>',
+  next: '<svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>',
+  volume: '<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>',
+  mute: '<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9zm13.6 3l2.7-2.7-1.4-1.4-2.7 2.7-2.7-2.7-1.4 1.4 2.7 2.7-2.7 2.7 1.4 1.4 2.7-2.7 2.7 2.7 1.4-1.4z"/></svg>',
+  cover: '<svg viewBox="0 0 16 16"><path d="M6 2v8.3a2.5 2.5 0 1 0 1.5 2.2V5.4l5-1V9a2.5 2.5 0 1 0 1.5 2.3V1z"/></svg>',
+};
+
+const $ = s => document.querySelector(s);
+const app = $('#app'), side = $('#side'), tree = $('#tree'), emptyEl = $('#empty'), notice = $('#notice');
+const stage = $('#stage'), media = $('#media'), player = $('#player');
+const seek = $('#seek'), curEl = $('#cur'), durEl = $('#dur'), vol = $('#vol');
+const addBtn = $('#addBtn'), prevBtn = $('#prevBtn'), playBtn = $('#playBtn'), stopBtn = $('#stopBtn'), nextBtn = $('#nextBtn'), muteBtn = $('#muteBtn');
+
+const store = {
+  get(key, fallback) {
+    try { const v = localStorage.getItem('mediaBrowser.' + key); return v === null ? fallback : JSON.parse(v); } catch { return fallback; }
+  },
+  set(key, value) {
+    try { localStorage.setItem('mediaBrowser.' + key, JSON.stringify(value)); } catch { /* 保存できなくても動作に支障なし */ }
+  },
+};
+
+// 開いたフォルダのハンドルを覚えておく（次回起動時に復元する）
+const idb = {
+  db: null,
+  open() {
+    return this.db ??= new Promise((resolve, reject) => {
+      const req = indexedDB.open('media-browser', 1);
+      req.onupgradeneeded = () => req.result.createObjectStore('roots', { keyPath: 'id', autoIncrement: true });
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  },
+  async run(mode, fn) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const t = db.transaction('roots', mode);
+      const req = fn(t.objectStore('roots'));
+      t.oncomplete = () => resolve(req.result);
+      t.onerror = () => reject(t.error);
+    });
+  },
+  all() { return this.run('readonly', s => s.getAll()); },
+  add(handle) { return this.run('readwrite', s => s.add({ handle })); },
+  remove(id) { return this.run('readwrite', s => s.delete(id)); },
+};
+
+
+const translations = {
+  "SEチェック": "Easy SE Check",
+  "フォルダを開く": "Open folder",
+  "再読み込み": "Refresh",
+  "フォルダ": "Folders",
+  "音声・動画のあるフォルダを追加してください。フォルダをここへドラッグしても追加できます。": "Add a folder containing audio or video files. You can also drag a folder here.",
+  "左のフォルダからファイルを選ぶと再生されます": "Select a file from the folders on the left to play it.",
+  "再生位置": "Playback position",
+  "前のファイル": "Previous file",
+  "再生 / 一時停止（Space）": "Play / Pause (Space)",
+  "再生": "Play",
+  "一時停止": "Pause",
+  "停止": "Stop",
+  "次のファイル": "Next file",
+  "ミュート": "Mute",
+  "音量": "Volume",
+  "1つのファイルを繰り返す": "Repeat the current file",
+  "ループ": "Loop",
+  "終わったら同じフォルダの次のファイルを再生": "Play the next file in the same folder when playback ends",
+  "連続再生": "Auto next",
+  "クリックするとアクセスを許可して開きます": "Click to allow access and open this folder",
+  "一覧から外す（フォルダ自体は削除されません）": "Remove from the list (the folder itself is not deleted)",
+  "フォルダを開けません（移動・削除された可能性があります）": "Cannot open the folder (it may have been moved or deleted)",
+  "再生できるファイルがありません": "No playable files found",
+  "ファイルを開けません（移動・削除された可能性があります）": "Cannot open the file (it may have been moved or deleted)",
+  "再生ボタンを押すと再生できます": "Press Play to start playback",
+  "この形式は再生できません（ブラウザが対応していないコーデックの可能性があります）": "Cannot play this format (the browser may not support its codec)",
+  "再生中にエラーが発生しました": "An error occurred during playback",
+  "フォルダを開けませんでした: ": "Could not open the folder: ",
+  "このブラウザはフォルダ選択に対応していません。Chrome か Edge で開いてください。": "This browser does not support folder selection. Please open this app in Chrome or Edge."
+};
+let language = store.get('language', 'ja') === 'en' ? 'en' : 'ja';
+const t = text => language === 'en' ? (translations[text] ?? text) : text;
+const localized = [];
+for (const element of document.querySelectorAll('body *')) {
+  for (const attribute of ['title', 'aria-label']) {
+    const value = element.getAttribute(attribute);
+    if (translations[value]) localized.push({ element, attribute, value });
+  }
+  if (!element.children.length && translations[element.textContent]) {
+    localized.push({ element, value: element.textContent });
+  }
+}
+function applyLanguage() {
+  document.documentElement.lang = language;
+  for (const { element, attribute, value } of localized) {
+    if (attribute) element.setAttribute(attribute, t(value));
+    else element.textContent = t(value);
+  }
+  document.title = playNode ? `${playNode.name} - ${t('SEチェック')}` : t('SEチェック');
+  for (const node of roots) relocalizeNode(node);
+  syncPlayIcon();
+  setStatus(statusMessage);
+  paintNotice();
+}
+function relocalizeNode(node) {
+  const lock = node.row?.querySelector('.lock');
+  const close = node.row?.querySelector('.x');
+  if (lock) lock.title = t('クリックするとアクセスを許可して開きます');
+  if (close) close.title = t('一覧から外す（フォルダ自体は削除されません）');
+  if (node.isDir && node.loaded) renderChildren(node);
+  for (const child of node.kids) relocalizeNode(child);
+}
+$('#language').value = language;
+$('#language').addEventListener('change', e => {
+  language = e.target.value;
+  store.set('language', language);
+  applyLanguage();
+});
+
+const collator = new Intl.Collator('ja', { numeric: true, sensitivity: 'base' });
+const byName = (a, b) => collator.compare(a.name, b.name);
+
+const roots = [];
+let selNode = null, playNode = null, playToken = 0, objUrl = null, raf = 0, dragging = false, autoNext = false, noticeTimer = 0;
+
+// ---------- ツリー ----------
+
+function makeNode(handle, parent) {
+  const isDir = handle.kind === 'directory';
+  return {
+    handle, parent, isDir, name: handle.name, kind: isDir ? 'dir' : kindOf(handle.name),
+    depth: parent ? parent.depth + 1 : 0,
+    open: false, loaded: false, locked: false, error: false, kids: [], tok: 0,
+    wrap: null, row: null, box: null,
+  };
+}
+
+function el(tag, cls, html) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (html) e.innerHTML = html;
+  return e;
+}
+
+function renderNode(node) {
+  const wrap = el('div');
+  const row = el('div', `row ${node.isDir ? 'dir' : 'file ' + node.kind}${node.parent ? '' : ' root'}`);
+  row.style.paddingLeft = `${6 + node.depth * 14}px`;
+  row.setAttribute('role', 'treeitem');
+  row.title = node.name;
+  row._node = node;
+  row.append(el('span', 'chev', ICON.chev), el('span', 'ico', node.isDir ? ICON.folder : ICON[node.kind]));
+  const label = el('span', 'label');
+  label.textContent = node.name;
+  row.append(label);
+  if (!node.parent) {
+    const lock = el('span', 'lock', ICON.lock);
+    lock.title = t("クリックするとアクセスを許可して開きます");
+    const x = el('span', 'x', ICON.close);
+    x.title = t("一覧から外す（フォルダ自体は削除されません）");
+    x.addEventListener('click', e => { e.stopPropagation(); removeRoot(node); });
+    row.append(lock, x);
+  }
+  wrap.append(row);
+  node.wrap = wrap;
+  node.row = row;
+  if (node.isDir) {
+    node.box = el('div');
+    node.box.setAttribute('role', 'group');
+    node.box.hidden = !node.open;
+    wrap.append(node.box);
+    if (node.open && node.loaded) renderChildren(node);
+  }
+  paintRow(node);
+  return wrap;
+}
+
+function renderChildren(node) {
+  const box = node.box;
+  box.replaceChildren();
+  const pad = `${6 + (node.depth + 1) * 14 + 20}px`;
+  if (node.error || !node.kids.length) {
+    const note = el('div', 'note');
+    note.style.paddingLeft = pad;
+    note.textContent = node.error ? t("フォルダを開けません（移動・削除された可能性があります）") : t("再生できるファイルがありません");
+    box.append(note);
+  }
+  for (const kid of node.kids) box.append(renderNode(kid));
+}
+
+function paintRow(node) {
+  const row = node.row;
+  if (!row) return;
+  row.classList.toggle('open', node.open);
+  row.classList.toggle('sel', node === selNode);
+  row.classList.toggle('playing', node === playNode);
+  row.classList.toggle('locked', node.locked);
+  row.setAttribute('aria-selected', node === selNode);
+  if (node.isDir) row.setAttribute('aria-expanded', node.open);
+}
+
+async function listDir(dirHandle) {
+  const dirs = [], files = [];
+  for await (const h of dirHandle.values()) {
+    if (h.kind === 'directory') dirs.push(h);
+    else if (kindOf(h.name)) files.push(h);
+  }
+  return [...dirs.sort(byName), ...files.sort(byName)];
+}
+
+// フォルダの中身を読み直して描画する。開いている子フォルダも開いたまま読み直す
+async function refreshNode(node) {
+  const tok = ++node.tok;
+  let entries;
+  try {
+    entries = await listDir(node.handle);
+  } catch (e) {
+    if (tok !== node.tok) return;
+    if (e.name === 'NotAllowedError') {
+      node.locked = true;
+      node.open = false;
+      node.box.hidden = true;
+      paintRow(node);
+      return;
+    }
+    node.error = true;
+    node.kids = [];
+    node.loaded = true;
+    renderChildren(node);
+    return;
+  }
+  if (tok !== node.tok) return;
+  const old = new Map(node.kids.map(k => [k.name, k]));
+  node.kids = entries.map(h => {
+    const k = old.get(h.name);
+    if (k && k.isDir === (h.kind === 'directory')) { k.handle = h; return k; }
+    return makeNode(h, node);
+  });
+  node.error = false;
+  node.loaded = true;
+  renderChildren(node);
+  await Promise.all(node.kids.filter(k => k.isDir && k.open).map(refreshNode));
+}
+
+async function grant(node) {
+  try { return (await node.handle.requestPermission({ mode: 'read' })) === 'granted'; } catch { return false; }
+}
+
+async function toggle(node) {
+  let open = !node.open;
+  if (node.locked) {
+    if (!await grant(node)) return;
+    node.locked = false;
+    open = true;
+  }
+  node.open = open;
+  node.box.hidden = !open;
+  paintRow(node);
+  if (open) await refreshNode(node);
+}
+
+async function addRoot(handle, { id, locked = false } = {}) {
+  for (const r of roots) {
+    try { if (await r.handle.isSameEntry(handle)) return r; } catch { /* 比較できなければ別物として追加 */ }
+  }
+  if (id === undefined) { try { id = await idb.add(handle); } catch { /* 記憶できなくても使える */ } }
+  const node = makeNode(handle, null);
+  node.id = id;
+  node.locked = locked;
+  roots.push(node);
+  tree.append(renderNode(node));
+  emptyEl.hidden = true;
+  return node;
+}
+
+function removeRoot(node) {
+  const i = roots.indexOf(node);
+  if (i < 0) return;
+  roots.splice(i, 1);
+  node.wrap.remove();
+  if (node.id !== undefined) idb.remove(node.id).catch(() => {});
+  for (let n = selNode; n; n = n.parent) if (n === node) { selNode = null; break; }
+  emptyEl.hidden = roots.length > 0;
+}
+
+function select(node) {
+  const prev = selNode;
+  selNode = node;
+  if (prev && prev !== node) paintRow(prev);
+  paintRow(node);
+  node.row?.scrollIntoView({ block: 'nearest' });
+}
+
+function activate(node) {
+  if (node.isDir) { select(node); toggle(node); } else openFile(node);
+}
+
+// 矢印キーでの移動: ファイルに移ったらそのまま再生する
+function moveSel(delta) {
+  const rows = [...tree.querySelectorAll('.row')].filter(r => r.offsetParent);
+  if (!rows.length) return;
+  const i = rows.findIndex(r => r._node === selNode);
+  const node = rows[Math.min(Math.max(i + delta, 0), rows.length - 1)]._node;
+  if (node.isDir) select(node); else openFile(node);
+}
+
+tree.addEventListener('click', e => {
+  const row = e.target.closest('.row');
+  if (!row) return;
+  tree.focus({ preventScroll: true });
+  activate(row._node);
+});
+
+// ---------- 再生 ----------
+
+function pathOf(node) {
+  const names = [];
+  for (let n = node.parent; n; n = n.parent) names.unshift(n.name);
+  return names.join(' / ');
+}
+
+function siblings(node) {
+  return node?.parent ? node.parent.kids.filter(k => !k.isDir) : [];
+}
+
+let statusMessage = '';
+function setStatus(text) {
+  statusMessage = Object.keys(translations).find(key => translations[key] === text) ?? text;
+  $('#status').textContent = t(statusMessage);
+}
+
+async function openFile(node) {
+  const token = ++playToken;
+  select(node);
+  let file;
+  try {
+    file = await node.handle.getFile();
+  } catch {
+    if (token === playToken) setStatus(t("ファイルを開けません（移動・削除された可能性があります）"));
+    return;
+  }
+  if (token !== playToken) return;
+
+  const prev = playNode;
+  playNode = node;
+  if (prev && prev !== node) paintRow(prev);
+  paintRow(node);
+  $('#title').textContent = node.name;
+  $('#path').textContent = pathOf(node);
+  document.title = `${node.name} - ${t("SEチェック")}`;
+  stage.dataset.kind = node.kind;
+  setStatus('');
+
+  const url = URL.createObjectURL(file);
+  media.src = url;
+  if (objUrl) URL.revokeObjectURL(objUrl);
+  objUrl = url;
+  updateNav();
+  try {
+    await media.play();
+  } catch (e) {
+    // 形式非対応は error イベント側で表示する。別のファイルに切り替わった時の中断も無視
+    if (e.name === 'NotAllowedError' && token === playToken) setStatus(t("再生ボタンを押すと再生できます"));
+  }
+}
+
+function updateNav() {
+  const list = siblings(playNode), i = list.indexOf(playNode);
+  prevBtn.disabled = stopBtn.disabled = playBtn.disabled = seek.disabled = !playNode;
+  nextBtn.disabled = !(i >= 0 && i < list.length - 1);
+}
+
+function stepFile(delta) {
+  const list = siblings(playNode);
+  const next = list[list.indexOf(playNode) + delta];
+  if (next) openFile(next);
+  return !!next;
+}
+
+function togglePlay() {
+  if (!playNode) {
+    if (selNode && !selNode.isDir) openFile(selNode);
+    return;
+  }
+  if (media.paused) media.play().catch(() => {}); else media.pause();
+}
+
+function seekBy(sec) {
+  if (!playNode || !isFinite(media.duration)) return;
+  media.currentTime = Math.min(Math.max(media.currentTime + sec, 0), media.duration);
+}
+
+function fmt(t) {
+  t = isFinite(t) && t > 0 ? Math.floor(t) : 0;
+  const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = String(t % 60).padStart(2, '0');
+  return h ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
+}
+
+function syncTime() {
+  if (!dragging) seek.value = media.currentTime;
+  curEl.textContent = fmt(dragging ? +seek.value : media.currentTime);
+}
+
+function tick() {
+  syncTime();
+  if (!media.paused && !media.ended) raf = requestAnimationFrame(tick);
+}
+
+function syncPlayIcon() {
+  const playing = !media.paused && !media.ended;
+  playBtn.innerHTML = playing ? ICON.pause : ICON.play;
+  playBtn.setAttribute('aria-label', playing ? t("一時停止") : t("再生"));
+}
+
+function syncVolume() {
+  const muted = media.muted || media.volume === 0;
+  vol.value = media.muted ? 0 : media.volume;
+  muteBtn.innerHTML = muted ? ICON.mute : ICON.volume;
+  store.set('volume', media.volume);
+  store.set('muted', media.muted);
+}
+
+media.addEventListener('loadedmetadata', () => { stage.dataset.kind = media.videoWidth ? 'video' : 'audio'; });
+function syncDuration() {
+  seek.max = isFinite(media.duration) ? media.duration : 0;
+  durEl.textContent = fmt(media.duration);
+  syncTime();
+}
+// 読み込み失敗時は durationchange が来ないことがあるので、emptied / error でも合わせる
+for (const type of ['durationchange', 'emptied']) media.addEventListener(type, syncDuration);
+media.addEventListener('play', () => { cancelAnimationFrame(raf); tick(); syncPlayIcon(); });
+media.addEventListener('pause', syncPlayIcon);
+media.addEventListener('timeupdate', syncTime);
+media.addEventListener('seeked', syncTime);
+media.addEventListener('ended', () => {
+  syncPlayIcon();
+  syncTime();
+  if (autoNext) stepFile(1);
+});
+media.addEventListener('error', () => {
+  syncPlayIcon();
+  syncDuration();
+  setStatus(media.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED
+    ? t("この形式は再生できません（ブラウザが対応していないコーデックの可能性があります）")
+    : t("再生中にエラーが発生しました"));
+});
+media.addEventListener('volumechange', syncVolume);
+media.addEventListener('click', togglePlay);
+media.addEventListener('dblclick', () => {
+  if (document.fullscreenElement) document.exitFullscreen(); else player.requestFullscreen?.();
+});
+
+seek.addEventListener('pointerdown', () => { dragging = true; });
+window.addEventListener('pointerup', () => { dragging = false; });
+seek.addEventListener('input', () => {
+  media.currentTime = +seek.value;
+  curEl.textContent = fmt(+seek.value);
+});
+
+playBtn.addEventListener('click', togglePlay);
+stopBtn.addEventListener('click', () => { media.pause(); media.currentTime = 0; syncTime(); });
+prevBtn.addEventListener('click', () => {
+  if (media.currentTime > 3 || !stepFile(-1)) media.currentTime = 0;
+});
+nextBtn.addEventListener('click', () => stepFile(1));
+muteBtn.addEventListener('click', () => {
+  if (media.volume === 0) { media.volume = 0.5; media.muted = false; } else media.muted = !media.muted;
+});
+vol.addEventListener('input', () => { media.muted = false; media.volume = +vol.value; });
+
+function toggleButton(btn, key, apply) {
+  let on = store.get(key, false);
+  const paint = () => { btn.setAttribute('aria-pressed', on); apply(on); };
+  btn.addEventListener('click', () => { on = !on; store.set(key, on); paint(); });
+  paint();
+}
+toggleButton($('#loopBtn'), 'loop', on => { media.loop = on; });
+toggleButton($('#autoNextBtn'), 'autoNext', on => { autoNext = on; });
+
+// ボタンをマウスで押してもフォーカスを移さず、Space/矢印キーが使えるままにする
+$('#bar').addEventListener('mousedown', e => { if (e.target.closest('button')) e.preventDefault(); });
+
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.altKey || e.metaKey || e.target.closest('input, select, button, textarea')) return;
+  switch (e.key) {
+    case ' ': e.preventDefault(); togglePlay(); break;
+    case 'ArrowLeft': e.preventDefault(); seekBy(-5); break;
+    case 'ArrowRight': e.preventDefault(); seekBy(5); break;
+    case 'ArrowUp': e.preventDefault(); moveSel(-1); break;
+    case 'ArrowDown': e.preventDefault(); moveSel(1); break;
+    case 'Enter': if (selNode) { e.preventDefault(); activate(selNode); } break;
+    case 'Delete': if (selNode && !selNode.parent) removeRoot(selNode); break;
+  }
+});
+
+// ---------- フォルダの追加・復元 ----------
+
+let noticeMessage = '', noticeDetail = '';
+function paintNotice() { notice.textContent = t(noticeMessage) + noticeDetail; }
+function notify(msg, sticky = false, detail = '') {
+  noticeMessage = Object.keys(translations).find(key => translations[key] === msg) ?? msg;
+  noticeDetail = detail;
+  paintNotice();
+  clearTimeout(noticeTimer);
+  if (!sticky) noticeTimer = setTimeout(() => { noticeMessage = noticeDetail = ''; paintNotice(); }, 8000);
+}
+
+addBtn.addEventListener('click', async () => {
+  let handle;
+  try {
+    handle = await window.showDirectoryPicker({ id: 'media-browser', mode: 'read' });
+  } catch (e) {
+    if (e.name !== 'AbortError') notify(t("フォルダを開けませんでした: "), false, e.message);
+    return;
+  }
+  const node = await addRoot(handle);
+  if (!node.open) toggle(node);
+});
+
+$('#refreshBtn').addEventListener('click', () => {
+  for (const r of roots) if (r.open && !r.locked) refreshNode(r);
+});
+
+let dragDepth = 0;
+const hasFiles = e => e.dataTransfer?.types.includes('Files');
+window.addEventListener('dragenter', e => { if (hasFiles(e)) { dragDepth++; side.classList.add('drop'); } });
+window.addEventListener('dragleave', e => { if (hasFiles(e) && --dragDepth <= 0) { dragDepth = 0; side.classList.remove('drop'); } });
+window.addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+window.addEventListener('drop', async e => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  dragDepth = 0;
+  side.classList.remove('drop');
+  // getAsFileSystemHandle は drop イベント中に呼ぶ必要がある
+  const pending = [...e.dataTransfer.items].filter(i => i.kind === 'file').map(i => i.getAsFileSystemHandle?.());
+  for (const handle of await Promise.all(pending)) {
+    if (handle?.kind !== 'directory') continue;
+    const node = await addRoot(handle);
+    if (!node.open) toggle(node);
+  }
+});
+
+// ---------- 左右の幅 ----------
+
+const splitter = $('#splitter');
+let resizing = false, sideWidth = store.get('side', 300);
+function setSide(px) {
+  // 上限(画面幅の60%)はCSS側で掛かる。起動時にウィンドウ幅が0でも幅が潰れないようここでは下限のみ
+  sideWidth = Math.max(px, 200);
+  app.style.setProperty('--side', sideWidth + 'px');
+}
+splitter.addEventListener('pointerdown', e => { resizing = true; splitter.setPointerCapture(e.pointerId); splitter.classList.add('on'); });
+splitter.addEventListener('pointermove', e => { if (resizing) setSide(Math.min(e.clientX, window.innerWidth * 0.6)); });
+splitter.addEventListener('pointerup', () => { resizing = false; splitter.classList.remove('on'); store.set('side', sideWidth); });
+
+// ---------- 起動 ----------
+
+async function restoreRoots() {
+  let saved = [];
+  try { saved = await idb.all(); } catch { /* 復元できなければ空の状態で始める */ }
+  for (const s of saved) {
+    let perm = 'prompt';
+    try { perm = await s.handle.queryPermission({ mode: 'read' }); } catch { /* 許可待ち扱い */ }
+    await addRoot(s.handle, { id: s.id, locked: perm !== 'granted' });
+  }
+}
+
+$('#refreshBtn').innerHTML = ICON.refresh;
+$('#coverIcon').innerHTML = ICON.cover;
+prevBtn.innerHTML = ICON.prev;
+stopBtn.innerHTML = ICON.stop;
+nextBtn.innerHTML = ICON.next;
+syncPlayIcon();
+media.volume = store.get('volume', 0.8);
+media.muted = store.get('muted', false);
+syncVolume();
+setSide(sideWidth);
+
+applyLanguage();
+
+if ('showDirectoryPicker' in window) {
+  restoreRoots();
+} else {
+  addBtn.disabled = true;
+  notify(t("このブラウザはフォルダ選択に対応していません。Chrome か Edge で開いてください。"), true);
+}
+</script>
+</body>
+</html>
